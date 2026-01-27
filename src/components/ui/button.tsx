@@ -9,22 +9,20 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary hover:shadow-float hover:-translate-y-0.5",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-soft hover:shadow-glow",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border-2 border-primary text-primary bg-transparent hover:bg-primary hover:text-primary-foreground",
-        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/90 shadow-soft hover:shadow-float hover:-translate-y-0.5",
+        outline: "border-2 border-primary/30 bg-transparent text-primary hover:bg-primary/10 hover:border-primary",
+        secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-muted hover:text-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        primary: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary hover:shadow-float hover:-translate-y-1 active:translate-y-0",
-        trust: "bg-secondary text-secondary-foreground hover:bg-secondary/90 shadow-soft hover:shadow-float hover:-translate-y-1",
-        accent: "bg-accent text-accent-foreground hover:bg-accent/90 shadow-soft hover:-translate-y-0.5",
-        hero: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary hover:shadow-float hover:-translate-y-1 text-base px-8 py-4 rounded-2xl font-bold",
-        heroOutline: "border-2 border-primary text-primary bg-background/80 backdrop-blur-sm hover:bg-primary hover:text-primary-foreground text-base px-8 py-4 rounded-2xl font-bold hover:-translate-y-1 transition-all duration-300",
-        gentle: "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
-        success: "bg-success text-primary-foreground hover:bg-success/90 shadow-soft hover:-translate-y-0.5",
+        accent: "bg-accent text-accent-foreground hover:bg-accent/90 shadow-soft hover:shadow-glow-accent",
+        calm: "bg-calm text-primary-foreground hover:bg-calm/90 shadow-soft",
+        vitality: "bg-vitality text-primary-foreground hover:bg-vitality/90 shadow-soft",
+        peace: "bg-peace text-primary-foreground hover:bg-peace/90 shadow-soft",
+        glass: "bg-card/60 backdrop-blur-lg border border-border/50 text-foreground hover:bg-card/80",
       },
       size: {
-        default: "h-11 px-5 py-2.5",
+        default: "h-11 px-6 py-2",
         sm: "h-9 rounded-lg px-4",
         lg: "h-12 rounded-xl px-8 text-base",
         xl: "h-14 rounded-2xl px-10 text-lg",
@@ -35,7 +33,7 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
+  },
 );
 
 export interface ButtonProps
@@ -47,14 +45,8 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
-    return (
-      <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref}
-        {...props}
-      />
-    );
-  }
+    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+  },
 );
 Button.displayName = "Button";
 

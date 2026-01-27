@@ -1,113 +1,96 @@
 import { Link } from "react-router-dom";
-import { Heart, Mail, Phone, MapPin } from "lucide-react";
+import { Shield, Mail, Instagram, Twitter } from "lucide-react";
 
-export function Footer() {
+const Footer = () => {
   return (
-    <footer className="bg-secondary text-secondary-foreground">
-      {/* Main Footer */}
+    <footer className="bg-muted/50 border-t border-border mt-auto">
       <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
-          <div className="lg:col-span-1">
+          <div className="col-span-1 md:col-span-2">
             <Link to="/" className="flex items-center gap-2 mb-4">
               <img 
                 src="/logo.png" 
-                alt="Sahaara Gyaan Logo" 
+                alt="Sahaara Logo" 
                 className="w-10 h-10 object-contain"
               />
-              <span className="text-lg font-bold text-secondary-foreground leading-tight">
-                Sahaara Gyaan
+              <span className="text-xl font-bold text-foreground">
+                Sahaara Manas & Fit
               </span>
             </Link>
-            <p className="text-secondary-foreground/80 text-sm leading-relaxed mb-4">
-              Bridging the education gap across India with inclusive, accessible, 
-              and multilingual learning experiences for every student.
+            <p className="text-muted-foreground mb-4 max-w-sm">
+              Your space to feel better, move better, and live better. 
+              Designed with care for young minds and bodies.
             </p>
-            <div className="flex items-center gap-2 text-sm text-secondary-foreground/70">
-              <MapPin className="w-4 h-4" />
-              <span>Serving all of India</span>
-            </div>
+            <p className="text-sm text-primary font-medium">
+              You are not alone. Support is always here.
+            </p>
           </div>
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-bold text-secondary-foreground mb-4">Learn</h4>
+            <h4 className="font-semibold text-foreground mb-4">Explore</h4>
             <ul className="space-y-2">
-              {["Adaptive Learning", "Offline Mode", "Language Options", "Study Materials"].map((item) => (
-                <li key={item}>
-                  <Link 
-                    to="/learn" 
-                    className="text-sm text-secondary-foreground/70 hover:text-secondary-foreground transition-colors"
-                  >
-                    {item}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Accessibility */}
-          <div>
-            <h4 className="font-bold text-secondary-foreground mb-4">Accessibility</h4>
-            <ul className="space-y-2">
-              {[
-                "Screen Reader Support",
-                "High Contrast Mode",
-                "Font Size Controls",
-                "Assistive Tools"
-              ].map((item) => (
-                <li key={item}>
-                  <Link 
-                    to="/accessibility" 
-                    className="text-sm text-secondary-foreground/70 hover:text-secondary-foreground transition-colors"
-                  >
-                    {item}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Contact & Support */}
-          <div>
-            <h4 className="font-bold text-secondary-foreground mb-4">Support</h4>
-            <ul className="space-y-3">
-              <li className="flex items-center gap-2 text-sm text-secondary-foreground/70">
-                <Mail className="w-4 h-4" />
-                <a href="mailto:support@sahaaragyaan.org" className="hover:text-secondary-foreground transition-colors">
-                  support@sahaaragyaan.org
-                </a>
+              <li>
+                <Link to="/manas" className="text-muted-foreground hover:text-primary transition-colors">
+                  Manas – Mind Care
+                </Link>
               </li>
-              <li className="flex items-center gap-2 text-sm text-secondary-foreground/70">
-                <Phone className="w-4 h-4" />
-                <a href="tel:1800-XXX-XXXX" className="hover:text-secondary-foreground transition-colors">
-                  1800-XXX-XXXX (Toll Free)
-                </a>
+              <li>
+                <Link to="/fit" className="text-muted-foreground hover:text-primary transition-colors">
+                  Fit – Body Wellness
+                </Link>
+              </li>
+              <li>
+                <Link to="/progress" className="text-muted-foreground hover:text-primary transition-colors">
+                  Balance Tracker
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Trust & Safety */}
+          <div>
+            <h4 className="font-semibold text-foreground mb-4">Trust & Safety</h4>
+            <ul className="space-y-2">
+              <li>
+                <Link to="/about" className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
+                  About Sahaara
+                </Link>
+              </li>
+              <li>
+                <Link to="/privacy" className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  Privacy & Data Safety
+                </Link>
+              </li>
+              <li>
+                <Link to="/contact" className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Contact Us
+                </Link>
               </li>
             </ul>
           </div>
         </div>
-      </div>
 
-      {/* Bottom Bar */}
-      <div className="border-t border-secondary-foreground/10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-secondary-foreground/60">
-            <p>© 2026 Sahaara Gyaan. Education is a right, not a privilege.</p>
-            <div className="flex items-center gap-4">
-              <Link to="/privacy" className="hover:text-secondary-foreground transition-colors">
-                Privacy Policy
-              </Link>
-              <Link to="/terms" className="hover:text-secondary-foreground transition-colors">
-                Terms of Use
-              </Link>
-              <Link to="/accessibility" className="hover:text-secondary-foreground transition-colors">
-                Accessibility Statement
-              </Link>
-            </div>
+        {/* Bottom Bar */}
+        <div className="border-t border-border mt-8 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-muted-foreground">
+            © 2024 Sahaara. Made with 💚 for your wellbeing.
+          </p>
+          <div className="flex items-center gap-4">
+            <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              <Instagram className="w-5 h-5" />
+            </a>
+            <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              <Twitter className="w-5 h-5" />
+            </a>
           </div>
         </div>
       </div>
     </footer>
   );
-}
+};
+
+export default Footer;

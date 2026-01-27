@@ -15,18 +15,11 @@
     "jsx": "react-jsx",
 
     /* Linting */
-    // Gradually enabling strict mode - start with safer options
-    "strict": false, // Keep false for now to avoid breaking changes, but enable individual strict checks
-    "noUnusedLocals": false, // Keep false for now
-    "noUnusedParameters": false, // Keep false for now
-    "noImplicitAny": false, // Keep false for now
-    "noFallthroughCasesInSwitch": true, // Enable this for better switch statement safety
-    "strictNullChecks": false, // Keep false for now, but consider enabling in future
-    "strictFunctionTypes": true, // Enable for better function type checking
-    "strictBindCallApply": true, // Enable for better bind/call/apply type checking
-    "strictPropertyInitialization": false, // Keep false for now
-    "noImplicitThis": true, // Enable to catch implicit 'this' issues
-    "alwaysStrict": false, // Keep false for now
+    "strict": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noImplicitAny": false,
+    "noFallthroughCasesInSwitch": false,
 
     "baseUrl": ".",
     "paths": {

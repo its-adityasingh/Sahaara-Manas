@@ -1,571 +1,256 @@
-import { getPlaylistUrl } from './youtube-playlists';
+const PERPLEXITY_API_KEY = "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";
+const PERPLEXITY_API_URL = "https://api.perplexity.ai/chat/completions";
 
-// API Key - Must be set via environment variable: VITE_PERPLEXITY_API_KEY
-const PERPLEXITY_API_KEY = import.meta.env.VITE_PERPLEXITY_API_KEY;
-const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
-
-// Validate API key is configured
-if (!PERPLEXITY_API_KEY && import.meta.env.PROD) {
-  console.error('VITE_PERPLEXITY_API_KEY is not configured. Learning plan generation will not work.');
+export interface PerplexityMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
 }
 
-// Valid Perplexity models - try in order if one fails
-// Using Sonar reasoning pro models
-const PERPLEXITY_MODELS = [
-  'sonar-reasoning-pro',
-  'sonar-reasoning',
-  'sonar-pro',
-  'pplx-70b-online',
-  'pplx-7b-online',
-];
-
-export interface LearningPlanRequest {
-  class: string;
-  subjects: string[];
-  expectedMarks: Record<string, number>; // subject -> expected marks
-  studyPlan?: string;
-  language?: string;
-}
-
-export interface LearningPlanResponse {
-  plan: string;
-  modules: Array<{
-    subject: string;
-    topics: Array<{
-      name: string;
-      videoUrl?: string;
-    }>;
-    studyHours: string;
-    weeklySchedule: string[];
-    resources: string[];
+export interface PerplexityResponse {
+  id?: string;
+  object?: string;
+  created?: number;
+  model?: string;
+  choices: Array<{
+    index?: number;
+    finish_reason?: string;
+    message: {
+      role: string;
+      content: string;
+    };
+    delta?: {
+      role?: string;
+      content?: string;
+    };
   }>;
-}
-
-function getLanguageName(code: string): string {
-  const langMap: Record<string, string> = {
-    'en': 'English',
-    'hi': 'Hindi',
-    'ta': 'Tamil',
-    'te': 'Telugu',
-    'bn': 'Bengali',
-    'mr': 'Marathi',
-    'gu': 'Gujarati',
-    'kn': 'Kannada',
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
   };
-  return langMap[code] || 'English';
 }
 
-export async function generateLearningPlan(
-  request: LearningPlanRequest
-): Promise<LearningPlanResponse> {
-  // Check if API key is configured
-  if (!PERPLEXITY_API_KEY) {
-    throw new Error('Perplexity API key is not configured. Please set VITE_PERPLEXITY_API_KEY in your environment variables.');
-  }
+export async function callPerplexityAPI(
+  messages: PerplexityMessage[],
+  model: string = "sonar-reasoning-pro"
+): Promise<string> {
+  const requestBody = {
+    model,
+    messages: messages.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    })),
+    temperature: 0.7,
+    max_tokens: 2000,
+  };
+
+  console.log("Calling Perplexity API with model:", model);
+  console.log("Request body:", JSON.stringify(requestBody, null, 2));
 
   try {
-    // Build the prompt for Perplexity
-    const subjectsList = request.subjects.join(', ');
-    const marksDetails = Object.entries(request.expectedMarks)
-      .map(([subject, marks]) => `${subject}: ${marks}%`)
-      .join(', ');
-
-    const languageName = getLanguageName(request.language || 'en');
-    const languageInstruction = request.language && request.language !== 'en' 
-      ? `IMPORTANT: Generate the ENTIRE response in ${languageName} language. All text, headings, and content must be in ${languageName}.`
-      : '';
-
-    const prompt = `Create a detailed, personalized learning plan for a Class ${request.class} student in India studying ${subjectsList}. 
-    
-The student's expected marks are: ${marksDetails}.
-
-${languageInstruction}
-
-IMPORTANT: Provide ONLY the final learning plan. Do NOT include any reasoning, thinking process, or internal analysis. Start directly with the learning plan content.
-
-Please provide a comprehensive learning plan with the following structure:
-
-1. **Overview Section** (at the beginning):
-   - Target achievement summary
-   - Total study period
-   - Key milestones
-
-2. **For EACH subject**, provide:
-   - **Subject Name** (as a clear heading like "## Mathematics" or "### Mathematics")
-   - **Topics to Cover** (list each topic on a separate line with bullet points, like "- Real Numbers", "- Polynomials")
-   - **Estimated Study Hours** (e.g., "35-40 hours" or "2-3 hours per week")
-   - **Weekly Schedule** (specific days or week numbers)
-   - **Learning Resources** (mention: NCERT Textbook, YouTube playlists, practice worksheets, notes)
-   - **Study Strategy** (specific tips for that subject)
-
-3. **General Sections** (after subject sections):
-   - Weekly Study Schedule (if applicable)
-   - Daily Study Structure
-   - Tips to Achieve Target Marks
-   - Progress Monitoring
-
-CRITICAL FORMATTING REQUIREMENTS:
-- Use clear markdown headings: ## for main sections, ### for subsections
-- Use bullet points (- or *) for lists
-- Use **bold** for emphasis
-- Separate each subject clearly with headings
-- List topics as simple bullet points (e.g., "- Topic Name")
-- Include specific study hours and schedules
-- Mention resources like "NCERT Textbook", "YouTube videos", "Practice worksheets"
-
-EXAMPLE FORMAT:
-## Mathematics
-**Topics to Cover:**
-- Real Numbers
-- Polynomials
-- Linear Equations in Two Variables
-- Quadratic Equations
-
-**Estimated Study Hours:** 35-40 hours
-**Weekly Schedule:** Monday, Wednesday, Friday (2 hours each)
-**Resources:** NCERT Textbook, YouTube playlist for Class ${request.class} Mathematics, Practice worksheets
-**Study Strategy:** Focus on problem-solving practice, solve 5-6 problems daily
-
-Make it practical, achievable, and tailored to Indian curriculum (NCERT/CBSE/State Board). Ensure each subject has clear, actionable information.`;
-
-    // Try models in order until one works
-    let lastError: Error | null = null;
-    
-    for (const model of PERPLEXITY_MODELS) {
-      try {
-        const response = await fetch(PERPLEXITY_API_URL, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: [
-              {
-                role: 'system',
-                content: 'You are an expert educational consultant specializing in creating personalized learning plans for Indian students. Provide detailed, structured, and actionable learning plans.',
-              },
-              {
-                role: 'user',
-                content: prompt,
-              },
-            ],
-            temperature: 0.7,
-            max_tokens: 4000,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          const errorMessage = errorData.error?.message || `API request failed: ${response.statusText}`;
-          
-          // If it's a model error, try next model
-          if (errorMessage.includes('Invalid model') || errorMessage.includes('model')) {
-            lastError = new Error(errorMessage);
-            continue; // Try next model
-          }
-          
-          throw new Error(errorMessage);
-        }
-
-        const data = await response.json();
-        let planText = data.choices[0]?.message?.content || '';
-
-        // Clean up the response - remove reasoning/thinking sections
-        planText = cleanResponseText(planText);
-
-        // Parse the response into structured format
-        return parseLearningPlan(planText, request.subjects, request.class);
-      } catch (error) {
-        // If it's a model error, continue to next model
-        if (error instanceof Error && (error.message.includes('model') || error.message.includes('Invalid'))) {
-          lastError = error;
-          continue;
-        }
-        // Otherwise, throw the error
-        throw error;
-      }
-    }
-    
-    // If all models failed, throw the last error
-    throw lastError || new Error('All model attempts failed. Please check the Perplexity API documentation for valid models.');
-  } catch (error) {
-    console.error('Error generating learning plan:', error);
-    throw error;
-  }
-}
-
-function cleanResponseText(text: string): string {
-  // Remove reasoning/thinking sections
-  let cleaned = text;
-  
-  // Remove <think> sections (most common)
-  cleaned = cleaned.replace(/<think>[\s\S]*?<\/redacted_reasoning>/gi, '');
-  cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '');
-  cleaned = cleaned.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '');
-  cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '');
-  cleaned = cleaned.replace(/<thought>[\s\S]*?<\/thought>/gi, '');
-  
-  // Remove reasoning patterns without closing tags
-  cleaned = cleaned.replace(/<think>[\s\S]*?(?=\n\n##|\n\n#|$)/gi, '');
-  
-  // Remove reasoning patterns without tags
-  cleaned = cleaned.replace(/Reasoning:[\s\S]*?(?=\n\n##|\n\n#|\n\n|$)/gi, '');
-  cleaned = cleaned.replace(/Thinking:[\s\S]*?(?=\n\n##|\n\n#|\n\n|$)/gi, '');
-  
-  // Remove "Let me" reasoning statements
-  cleaned = cleaned.replace(/Let me[\s\S]*?\.(?=\n\n##|\n\n#|\n\n|$)/gi, '');
-  cleaned = cleaned.replace(/I need to[\s\S]*?\.(?=\n\n##|\n\n#|\n\n|$)/gi, '');
-  cleaned = cleaned.replace(/I should[\s\S]*?\.(?=\n\n##|\n\n#|\n\n|$)/gi, '');
-  cleaned = cleaned.replace(/I will[\s\S]*?\.(?=\n\n##|\n\n#|\n\n|$)/gi, '');
-  
-  // Remove date/time references in reasoning
-  cleaned = cleaned.replace(/The current date is.*?\./gi, '');
-  cleaned = cleaned.replace(/Today is.*?\./gi, '');
-  cleaned = cleaned.replace(/It is.*?2025.*?\./gi, '');
-  cleaned = cleaned.replace(/Friday, December.*?\./gi, '');
-  
-  // Remove "I have search results" type statements
-  cleaned = cleaned.replace(/I have search results.*?\./gi, '');
-  cleaned = cleaned.replace(/Based on the search results.*?\./gi, '');
-  cleaned = cleaned.replace(/Let me use this information.*?\./gi, '');
-  
-  // Remove lines that are clearly reasoning (containing "user is asking", "student has", etc.)
-  const reasoningPatterns = [
-    /The user is asking me to/gi,
-    /the student has roughly/gi,
-    /which is a critical time/gi,
-    /Class 10 board exams in India typically/gi,
-  ];
-  
-  reasoningPatterns.forEach(pattern => {
-    const lines = cleaned.split('\n');
-    cleaned = lines.filter(line => !pattern.test(line)).join('\n');
-  });
-  
-  // Remove multiple consecutive newlines
-  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
-  
-  // Remove leading/trailing whitespace
-  cleaned = cleaned.trim();
-  
-  // Find the first actual content (skip reasoning sections)
-  const contentStarters = [
-    /^##/,
-    /^#/,
-    /^###/,
-    /^\*\*/,
-    /^Week/,
-    /^Subject/,
-    /^Mathematics/,
-    /^Science/,
-    /^English/,
-    /^Hindi/,
-    /^Physics/,
-    /^Chemistry/,
-    /^Biology/,
-  ];
-  
-  const lines = cleaned.split('\n');
-  let startIndex = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    const isReasoning = line.toLowerCase().includes('reasoning') || 
-                       line.toLowerCase().includes('thinking') ||
-                       line.toLowerCase().includes('user is asking') ||
-                       line.toLowerCase().includes('the current date') ||
-                       line.toLowerCase().includes('let me');
-    
-    if (!isReasoning && (contentStarters.some(pattern => pattern.test(line)) || 
-        (line.length > 30 && !line.match(/^(The|I|Let|Based)/i)))) {
-      startIndex = i;
-      break;
-    }
-  }
-  
-  if (startIndex > 0) {
-    cleaned = lines.slice(startIndex).join('\n');
-  }
-  
-  // Final cleanup - remove any remaining reasoning fragments
-  cleaned = cleaned.replace(/^[^#\*\w]*?(The user|I need|Let me|Based on)[^#\*\n]*$/gim, '');
-  
-  return cleaned.trim();
-}
-
-function parseLearningPlan(
-  planText: string,
-  subjects: string[],
-  classLevel: string
-): LearningPlanResponse {
-  
-  // Extract YouTube URLs from the plan text - multiple patterns
-  const videoMap = new Map<string, string>();
-  const allVideoUrls: string[] = [];
-  
-  // Pattern 1: Markdown links [Topic](YouTube URL) - most common
-  const markdownPattern = /\[([^\]]+)\]\((https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11}))\)/gi;
-  let match;
-  while ((match = markdownPattern.exec(planText)) !== null) {
-    const topicName = match[1].trim();
-    const videoUrl = match[2];
-    videoMap.set(topicName.toLowerCase(), videoUrl);
-    allVideoUrls.push(videoUrl);
-  }
-  
-  // Pattern 2: Direct YouTube URLs (extract all)
-  const directUrlPattern = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11}))/gi;
-  const urlMatches = [...planText.matchAll(directUrlPattern)];
-  urlMatches.forEach(match => {
-    if (!allVideoUrls.includes(match[1])) {
-      allVideoUrls.push(match[1]);
-    }
-  });
-  
-  // Pattern 3: YouTube URLs after topic names (e.g., "Topic Name: https://youtube.com/...")
-  const topicUrlPattern = /([A-Za-z][^:\n]*?):\s*(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11}))/gi;
-  while ((match = topicUrlPattern.exec(planText)) !== null) {
-    const topicName = match[1].trim();
-    const videoUrl = match[2];
-    if (topicName.length > 3 && topicName.length < 100) {
-      videoMap.set(topicName.toLowerCase(), videoUrl);
-      if (!allVideoUrls.includes(videoUrl)) {
-        allVideoUrls.push(videoUrl);
-      }
-    }
-  }
-  
-  // Pattern 4: Extract from bullet points with URLs
-  const lines = planText.split('\n');
-  lines.forEach((line, index) => {
-    const urlMatch = line.match(/(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11}))/i);
-    if (urlMatch) {
-      // Look for topic name in the same line or previous line
-      const topicMatch = line.match(/[-*•]\s*([^:(\n]+?)(?:\s*[:(]|$)/) || 
-                        (index > 0 ? lines[index - 1].match(/[-*•]\s*([^:(\n]+?)(?:\s*[:(]|$)/) : null);
-      if (topicMatch) {
-        const topicName = topicMatch[1].trim();
-        if (topicName.length > 3 && topicName.length < 100 && !topicName.includes('http')) {
-          videoMap.set(topicName.toLowerCase(), urlMatch[1]);
-          if (!allVideoUrls.includes(urlMatch[1])) {
-            allVideoUrls.push(urlMatch[1]);
-          }
-        }
-      }
-    }
-  });
-  
-  if (import.meta.env.DEV) {
-    console.log('Extracted videos:', { 
-      videoMapSize: videoMap.size, 
-      allVideoUrlsCount: allVideoUrls.length,
-      videoMapEntries: Array.from(videoMap.entries()).slice(0, 5),
-      sampleUrls: allVideoUrls.slice(0, 3)
+    const response = await fetch(PERPLEXITY_API_URL, {
+      method: "POST",
+      mode: "cors",
+      headers: {
+        "Authorization": `Bearer ${PERPLEXITY_API_KEY}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      },
+      body: JSON.stringify(requestBody),
     });
-  }
 
-  // Use provided class level or extract from plan text
-  const extractedClass = classLevel || (planText.match(/Class\s+(\d+)/i)?.[1] || '');
+    console.log("API Response status:", response.status);
 
-  // Try to extract structured information from the AI response
-  const modules = subjects.map((subject) => {
-    // Find subject section - look for headings with subject name
-    const subjectPatterns = [
-      new RegExp(`(?:^|\\n)##\\s+${subject}[^]*?(?=\\n##|$)`, 'i'),
-      new RegExp(`(?:^|\\n)###\\s+${subject}[^]*?(?=\\n##|\\n###|$)`, 'i'),
-      new RegExp(`(?:^|\\n)\\*\\*${subject}\\*\\*[^]*?(?=\\n\\*\\*|\\n##|$)`, 'i'),
-      new RegExp(`${subject}[^]*?(?=\\n\\n##|\\n\\n###|$)`, 'i'),
-    ];
+    if (!response.ok) {
+      let errorText = "";
+      let errorJson: any = null;
+      try {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          errorJson = await response.json();
+          errorText = JSON.stringify(errorJson, null, 2);
+        } else {
+          errorText = await response.text();
+        }
+        console.error("Perplexity API error:", response.status, errorText);
+      } catch (e) {
+        errorText = `HTTP ${response.status} - Could not parse error response`;
+        console.error("Error parsing error response:", e);
+      }
+      
+      // Return user-friendly error message
+      if (response.status === 401) {
+        return "Chinku's access key seems invalid. Please contact support.";
+      } else if (response.status === 429) {
+        return "Chinku is too busy right now! Please wait a moment and try again.";
+      } else if (response.status === 400) {
+        return `Chinku received a bad request. ${errorJson?.error?.message || "Please check your inputs and try again."}`;
+      } else if (response.status >= 500) {
+        return "Chinku's servers are having issues. Please try again in a few minutes.";
+      }
+      return `Chinku encountered an issue (Error ${response.status}). ${errorJson?.error?.message || "Please try again."}`;
+    }
+
+    const data: PerplexityResponse = await response.json();
+    console.log("API Response data:", JSON.stringify(data, null, 2));
     
-    let subjectSection = '';
-    for (const pattern of subjectPatterns) {
-      const match = planText.match(pattern);
-      if (match && match[0]) {
-        subjectSection = match[0];
+    if (!data) {
+      console.error("No data in response");
+      return "Chinku couldn't generate a response. No data received from API. Please try again.";
+    }
+    
+    if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+      console.error("Invalid API response structure - no choices:", data);
+      return "Chinku couldn't generate a response. The API returned an unexpected format. Please try again.";
+    }
+    
+    const firstChoice = data.choices[0];
+    if (!firstChoice || !firstChoice.message) {
+      console.error("Invalid API response structure - no message:", firstChoice);
+      return "Chinku couldn't generate a response. Invalid response structure. Please try again.";
+    }
+    
+    let content = firstChoice.message.content;
+    if (!content || typeof content !== "string" || content.trim() === "") {
+      console.error("Empty or invalid content in API response:", content);
+      return "Chinku generated an empty response. Please try again with different inputs.";
+    }
+    
+    // Remove all markdown and thinking text
+    content = content
+      // Remove thinking/reasoning tags
+      .replace(/<think>[\s\S]*?<\/think>/gi, "")
+      .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+      .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, "")
+      .replace(/<think>[\s\S]*?<\/redacted_reasoning>/gi, "")
+      // Remove markdown headers
+      .replace(/^#{1,6}\s+/gm, "")
+      // Remove markdown bold/italic
+      .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+      .replace(/\*([^*]+)\*/g, "$1")
+      .replace(/__([^_]+)__/g, "<b>$1</b>")
+      .replace(/_([^_]+)_/g, "$1")
+      // Remove markdown lists
+      .replace(/^[\s]*[-*+]\s+/gm, "")
+      .replace(/^\d+\.\s+/gm, "")
+      // Remove formatting rules mentions
+      .replace(/IMPORTANT FORMATTING RULES:[\s\S]*?Keep response/gmi, "")
+      .replace(/CRITICAL FORMATTING RULES:[\s\S]*?Keep response/gmi, "")
+      .replace(/STRICT RULES[\s\S]*?Keep response/gmi, "")
+      .replace(/Format as:[\s\S]*?Keep response/gmi, "")
+      .replace(/Structure:[\s\S]*?Keep response/gmi, "")
+      // Remove any preamble about instructions
+      .replace(/Looking at[\s\S]*?Output only/gmi, "")
+      .replace(/Following[\s\S]*?Output only/gmi, "")
+      .replace(/I need to[\s\S]*?Output only/gmi, "")
+      .trim();
+    
+    // Find where actual content starts (after any remaining preamble)
+    const contentStarters = ["<table>", "Weekly Schedule", "Training Frequency", "Daily Meal Plan", "Train", "Practice", "Breakfast", "Monday", "Exercise"];
+    for (const starter of contentStarters) {
+      const index = content.toLowerCase().indexOf(starter.toLowerCase());
+      if (index > 0 && index < 300) {
+        content = content.substring(index);
         break;
       }
     }
     
-    // If no section found, try to find subject mentioned anywhere
-    if (!subjectSection) {
-      const subjectIndex = planText.toLowerCase().indexOf(subject.toLowerCase());
-      if (subjectIndex !== -1) {
-        // Extract 2000 characters after subject mention
-        subjectSection = planText.substring(subjectIndex, subjectIndex + 2000);
-      }
-    }
-
-    // Extract topics from subject section
-    let topics: Array<{ name: string; videoUrl?: string }> = [];
+    console.log("Successfully got response from Chinku, length:", content.length);
+    return content;
+  } catch (error) {
+    console.error("Error calling Perplexity API:", error);
     
-    if (subjectSection) {
-      // Look for bullet points with topics
-      const topicLines = subjectSection.split('\n').filter(line => {
-        const trimmed = line.trim();
-        // Match bullet points that look like topics
-        return /^[-*•]\s+[A-Z]/.test(trimmed) || 
-               /^[-*•]\s+[a-z]/.test(trimmed) ||
-               /^\d+\.\s+[A-Z]/.test(trimmed);
+    // Return a helpful error message instead of throwing
+    if (error instanceof Error) {
+      const errorMsg = error.message.toLowerCase();
+      console.error("Error details:", {
+        message: error.message,
+        name: error.name,
+        stack: error.stack
       });
       
-      topics = topicLines
-        .slice(0, 20) // Limit to 20 topics
-        .map((line) => {
-          // Remove bullet point markers and clean
-          const cleaned = line.replace(/^[-*•\d\.\s]+/, '').trim();
-          
-          // Remove markdown formatting
-          const finalCleaned = cleaned
-            .replace(/\*\*/g, '')
-            .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Remove markdown links, keep text
-            .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs from topic name
-            .trim();
-          
-          if (finalCleaned.length < 3 || finalCleaned.length > 100) return null;
-          if (finalCleaned.toLowerCase().includes('topics to cover') ||
-              finalCleaned.toLowerCase().includes('estimated study') ||
-              finalCleaned.toLowerCase().includes('weekly schedule') ||
-              finalCleaned.toLowerCase().includes('resources') ||
-              finalCleaned.toLowerCase().includes('study strategy')) {
-            return null; // Skip section headers
-          }
-          
-          // Try to find video URL for this topic
-          const cleanedLower = finalCleaned.toLowerCase();
-          let videoUrl = videoMap.get(cleanedLower);
-          
-          // Try partial matching
-          if (!videoUrl) {
-            for (const [key, url] of videoMap.entries()) {
-              if (cleanedLower.includes(key) || key.includes(cleanedLower)) {
-                videoUrl = url;
-                break;
-              }
-            }
-          }
-          
-          return {
-            name: finalCleaned,
-            videoUrl: videoUrl || undefined,
-          };
-        })
-        .filter((t): t is { name: string; videoUrl?: string } => t !== null);
-    }
-    
-    // If no topics found, try alternative extraction
-    if (topics.length === 0 && subjectSection) {
-      // Look for lines that are clearly topics (not headers, not metadata)
-      const allLines = subjectSection.split('\n');
-      for (const line of allLines) {
-        const trimmed = line.trim();
-        if (trimmed.length > 5 && trimmed.length < 80 && 
-            !trimmed.startsWith('#') && 
-            !trimmed.startsWith('**') &&
-            !trimmed.toLowerCase().includes('hours') &&
-            !trimmed.toLowerCase().includes('schedule') &&
-            !trimmed.toLowerCase().includes('resources') &&
-            !trimmed.includes('http') &&
-            /^[A-Za-z]/.test(trimmed)) {
-          topics.push({ name: trimmed });
-          if (topics.length >= 15) break;
-        }
+      if (errorMsg.includes("failed to fetch") || errorMsg.includes("networkerror") || errorMsg.includes("network")) {
+        return "Chinku can't connect right now. This might be a CORS or network issue. Please check your internet connection and try again. If the problem persists, Chinku might be taking a break! 😊";
       }
-    }
-    
-    // Extract study hours
-    let studyHours = '2-3 hours/week';
-    if (subjectSection) {
-      const hoursMatch = subjectSection.match(/(?:study\s+hours?|estimated\s+study|hours?)[:\s]+([^\n]+)/i);
-      if (hoursMatch) {
-        studyHours = hoursMatch[1].trim().replace(/[^\d\-\s\/hoursperweek]/gi, '').substring(0, 30) || studyHours;
+      if (errorMsg.includes("cors")) {
+        return "Chinku is blocked by browser security (CORS). This might require a backend proxy. Please contact support.";
       }
-    }
-    
-    // Extract weekly schedule
-    let weeklySchedule: string[] = ['Monday', 'Wednesday', 'Friday'];
-    if (subjectSection) {
-      const scheduleMatch = subjectSection.match(/(?:weekly\s+schedule|schedule)[:\s]+([^\n]+)/i);
-      if (scheduleMatch) {
-        const scheduleText = scheduleMatch[1];
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        const foundDays = days.filter(day => scheduleText.includes(day));
-        if (foundDays.length > 0) {
-          weeklySchedule = foundDays;
-        }
+      if (errorMsg.includes("timeout") || errorMsg.includes("aborted")) {
+        return "Chinku is taking too long to respond. Please try again.";
       }
-    }
-    
-    // Extract resources
-    let resources: string[] = ['NCERT Textbook', 'Practice Worksheets'];
-    if (subjectSection) {
-      const resourcesMatch = subjectSection.match(/(?:resources?|learning\s+resources?)[:\s]+([^\n]+)/i);
-      if (resourcesMatch) {
-        const resourcesText = resourcesMatch[1];
-        // Extract common resource mentions
-        const resourceList: string[] = [];
-        if (resourcesText.includes('NCERT') || resourcesText.includes('textbook')) {
-          resourceList.push('NCERT Textbook');
-        }
-        if (resourcesText.includes('YouTube') || resourcesText.includes('video')) {
-          resourceList.push('YouTube Videos');
-        }
-        if (resourcesText.includes('worksheet') || resourcesText.includes('practice')) {
-          resourceList.push('Practice Worksheets');
-        }
-        if (resourcesText.includes('notes')) {
-          resourceList.push('Study Notes');
-        }
-        if (resourceList.length > 0) {
-          resources = resourceList;
-        }
+      if (errorMsg.includes("syntaxerror") || errorMsg.includes("json")) {
+        return "Chinku received an invalid response format. Please try again.";
       }
+      return `Chinku encountered an issue: ${error.message}. Please try again in a moment.`;
     }
-    
-    // Add YouTube playlist URL if available
-    if (extractedClass) {
-      const playlistUrl = getPlaylistUrl(extractedClass, subject);
-      if (playlistUrl && !resources.includes('YouTube Playlist')) {
-        resources.push('YouTube Playlist');
-      }
-    }
-    
-    // If still no topics, create default topics
-    if (topics.length === 0) {
-      topics = [
-        { name: 'Fundamentals' },
-        { name: 'Practice Problems' },
-        { name: 'Revision' },
-      ];
-    }
-
-    return {
-      subject,
-      topics: topics.slice(0, 15), // Limit to 15 topics
-      studyHours,
-      weeklySchedule,
-      resources,
-    };
-  });
-
-  return {
-    plan: planText,
-    modules,
-  };
+    return "Chinku is having trouble right now. Please try again later!";
+  }
 }
 
-// Helper function to convert YouTube search URL to a watch URL (if possible)
-function convertToWatchUrl(url: string): string | null {
-  // If it's already a watch URL, return it
-  if (url.includes('youtube.com/watch') || url.includes('youtu.be/')) {
-    return url;
-  }
-  
-  // If it's a search URL, we can't convert it - return null
-  if (url.includes('youtube.com/results')) {
-    return null;
-  }
-  
-  return url;
+// Helper function for Manas (Yoga/Meditation)
+export async function getYogaRecommendation(
+  userInput: string,
+  userFeelings: string,
+  userGoals: string
+): Promise<string> {
+  const systemPrompt = `You are an expert yoga instructor. Output ONLY the yoga plan content. NO markdown symbols (#, *, **, -, numbers). NO formatting rules. NO explanations. Start immediately with the plan.
+
+Use HTML tables for schedules. Use <b>bold</b> for emphasis. Keep under 400 words. Output format: Weekly Schedule HTML table, then Recommended Asanas, then Breathing Techniques, then Precautions.`;
+
+  const userPrompt = `Feelings: ${userFeelings}
+Goals: ${userGoals}
+${userInput ? `Additional Info: ${userInput}` : ""}
+
+Generate a personalized yoga plan with weekly schedule table and specific recommendations.`;
+
+  const messages: PerplexityMessage[] = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt },
+  ];
+
+  return await callPerplexityAPI(messages);
 }
 
+// Helper function for Fit (Fitness)
+export async function getFitnessRecommendation(
+  fitnessGoal: string,
+  userInput?: string
+): Promise<string> {
+  const systemPrompt = `You are an expert fitness trainer. Output ONLY the workout plan content. NO markdown symbols (#, *, **, -, numbers). NO formatting rules. NO explanations. Start immediately with the plan.
+
+Use HTML tables for exercises and schedule. Use <b>bold</b> for emphasis. Keep under 400 words. Prefer bodyweight exercises. Output format: Training frequency, then Exercise HTML table, then Weekly Schedule HTML table, then Progression tips, then Safety tips.`;
+
+  const userPrompt = `Goal: ${fitnessGoal}
+${userInput ? `Additional Info: ${userInput}` : ""}
+
+Generate a personalized workout plan with tables for schedule and exercises.`;
+
+  const messages: PerplexityMessage[] = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt },
+  ];
+
+  return await callPerplexityAPI(messages);
+}
+
+// Helper function for Nutrition
+export async function getNutritionPlan(
+  fitnessGoal: string,
+  userInput?: string
+): Promise<string> {
+  const systemPrompt = `You are an expert nutritionist. Output ONLY the diet plan content. NO markdown symbols (#, *, **, -, numbers). NO formatting rules. NO explanations. Start immediately with the plan.
+
+Use HTML tables for meal plans. Use <b>bold</b> for emphasis. Keep under 400 words. Indian context, budget-friendly. Output format: Daily Meal Plan HTML table, then Weekly Variations, then Budget Tips, then Quick Recipes.`;
+
+  const userPrompt = `Goal: ${fitnessGoal}
+${userInput ? `Additional Info: ${userInput}` : ""}
+
+Generate a personalized diet plan with meal tables and practical tips.`;
+
+  const messages: PerplexityMessage[] = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: userPrompt },
+  ];
+
+  return await callPerplexityAPI(messages);
+}
