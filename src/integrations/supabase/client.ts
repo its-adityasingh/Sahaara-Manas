@@ -8,7 +8,19 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+// Avoid hard-crashing the entire app in production if env vars are missing.
+// (On Vercel, missing env vars can otherwise lead to a blank screen.)
+const SAFE_SUPABASE_URL = SUPABASE_URL || "https://dummy.supabase.co";
+const SAFE_SUPABASE_KEY = SUPABASE_PUBLISHABLE_KEY || "dummy-anon-key";
+
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  console.warn(
+    "[supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_PUBLISHABLE_KEY. " +
+      "Supabase calls will fail until you set these in your environment."
+  );
+}
+
+export const supabase = createClient<Database>(SAFE_SUPABASE_URL, SAFE_SUPABASE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
